@@ -52,6 +52,8 @@ Stream any track from your Spotify playlists. Audio is fetched from YouTube via 
 4. Add yourself under Settings > User Management
 5. Click the settings icon in the player > log in
 
+See [SPOTIFY_SETUP.md](SPOTIFY_SETUP.md) for detailed instructions and troubleshooting.
+
 ## Apple Music Setup
 
 Browse your Apple Music library playlists. Requires an Apple Developer account. **Apple Music subscription is not required for playback.**
@@ -60,6 +62,8 @@ Browse your Apple Music library playlists. Requires an Apple Developer account. 
 2. Download the `.p8` key file and place it in the project root
 3. Add `APPLE_TEAM_ID` and `APPLE_KEY_ID` to your `.env`
 4. Click the settings icon > switch to apple > log in
+
+See [APPLE_MUSIC_SETUP.md](APPLE_MUSIC_SETUP.md) for detailed instructions and troubleshooting.
 
 ## Build
 
