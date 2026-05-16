@@ -81,10 +81,14 @@ export default function App() {
   const [loadingPlaylist, setLoadingPlaylist] = useState(false);
   const [settingsError, setSettingsError] = useState(null);
   const [musicService, setMusicService] = useState('spotify');
-  const [shuffle, setShuffle] = useState(false);
+  const [playMode, setPlayMode] = useState('normal'); // 'normal' | 'shuffle' | 'repeat'
+  const [volumeHovered, setVolumeHovered] = useState(false);
+  const [volumeDragging, setVolumeDragging] = useState(false);
+  const volumeBarRef = useRef(null);
+  const [showDebug] = useState(false);
 
-  const local = useAudioPlayer(shuffle);
-  const streaming = useSpotifyPlayer(streamTracks, shuffle);
+  const local = useAudioPlayer(playMode);
+  const streaming = useSpotifyPlayer(streamTracks, playMode);
   const player = source === 'streaming' ? streaming : local;
 
   const {
@@ -97,7 +101,15 @@ export default function App() {
     next,
     prev,
     seek,
+    volume,
+    setVolume,
+    muted,
+    toggleMute,
   } = player;
+
+  const cyclePlayMode = useCallback(() => {
+    setPlayMode((m) => m === 'normal' ? 'shuffle' : m === 'shuffle' ? 'repeat' : 'normal');
+  }, []);
 
   // ── Fetch Spotify playlists ────────────────────────────
   const loadSpotifyPlaylists = useCallback((silent = false) => {
@@ -193,6 +205,26 @@ export default function App() {
       window.removeEventListener('mouseup', onMouseUp);
     };
   }, [dragging, seek]);
+
+  useEffect(() => {
+    if (!volumeDragging) return;
+    const onMouseMove = (e) => {
+      if (!volumeBarRef.current) return;
+      const rect = volumeBarRef.current.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+      setVolume(pct);
+    };
+    const onMouseUp = () => {
+      setVolumeDragging(false);
+      setVolumeHovered(false);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [volumeDragging, setVolume]);
   const [needleChangeFrame, setNeedleChangeFrame] = useState(0);
   const prevTrackRef = useRef(track.title);
 
@@ -306,8 +338,26 @@ export default function App() {
 
       {/* Playback control layers (visual only) */}
       <img src={assets.backwardsButton} className="layer layer-ui" alt="" draggable={false} />
-      <img src={isPlaying? assets.pauseButton : assets.playButton} className="layer layer-ui" alt="" draggable={false} />
+      <img src={isPlaying ? assets.pauseButton : assets.playButton} className="layer layer-ui" alt="" draggable={false} />
       <img src={assets.forwardsButton} className="layer layer-ui" alt="" draggable={false} />
+
+      {/* Volume/mute button layer */}
+      <img
+        src={muted ? assets.muteButton : assets.volumeButton}
+        className="layer layer-ui"
+        alt=""
+        draggable={false}
+        style={{ opacity: 0.8 }}
+      />
+
+      {/* Shuffle/repeat button layer */}
+      <img
+        src={playMode === 'repeat' ? assets.repeatButton : assets.shuffleButton}
+        className="layer layer-ui"
+        alt=""
+        draggable={false}
+        style={{ opacity: playMode === 'normal' ? 0.4 : 0.8 }}
+      />
 
       {/* Window control layers (visual only) */}
       <img src={assets.minimizerButton} className="layer layer-ui" alt="" draggable={false} />
@@ -390,6 +440,50 @@ export default function App() {
       <div className="btn btn-play" onClick={togglePlay} />
       <div className="btn btn-next" onClick={next} />
 
+      {/* Volume bar layers — shown on hover or drag */}
+      {(volumeHovered || volumeDragging) && (
+        <>
+          <img src={assets.volumeBarLow} className="layer layer-ui volume-bar-layer" alt="" draggable={false} />
+          <img
+            src={assets.volumeBarHigh}
+            className="layer layer-ui volume-bar-layer"
+            alt=""
+            draggable={false}
+            style={{
+              clipPath: `inset(${((1 - (muted ? 0 : volume)) * (420 - 338) / 512 + 338 / 512) * 100}% 0 0 0)`,
+            }}
+          />
+        </>
+      )}
+
+      {/* Volume icon — hover to reveal bar */}
+      <div
+        className={`volume-hover-zone ${(volumeHovered || volumeDragging) ? 'expanded' : ''}`}
+        onMouseLeave={() => { if (!volumeDragging) setVolumeHovered(false); }}
+      >
+        <div
+          className="btn-volume-icon"
+          onClick={toggleMute}
+          onMouseEnter={() => setVolumeHovered(true)}
+        />
+        {(volumeHovered || volumeDragging) && (
+          <div
+            className="volume-bar-area"
+            ref={volumeBarRef}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setVolumeDragging(true);
+              const rect = e.currentTarget.getBoundingClientRect();
+              const pct = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+              setVolume(pct);
+            }}
+          />
+        )}
+      </div>
+
+      {/* Shuffle/repeat click target */}
+      <div className="btn btn-playmode" onClick={cyclePlayMode} title={playMode} />
+
       {/* Window control click targets */}
       <div className="btn btn-minimize" onClick={() => window.cupid?.minimize()} />
       <div className="btn btn-window" onClick={() => window.cupid?.maximize()} />
@@ -397,6 +491,18 @@ export default function App() {
 
       {/* Settings button */}
       <div className="btn btn-settings" onClick={() => setShowSettings((v) => !v)} />
+
+      {/* Debug overlays — toggle with showDebug state */}
+      {showDebug && (
+        <>
+          <div className="debug-overlay btn btn-prev" />
+          <div className="debug-overlay btn btn-play" />
+          <div className="debug-overlay btn btn-next" />
+          <div className="debug-overlay volume-hover-zone" />
+          <div className="debug-overlay volume-bar-area-debug" />
+          <div className="debug-overlay btn btn-playmode" />
+        </>
+      )}
 
       {/* Settings panel */}
       {showSettings && (
@@ -430,13 +536,6 @@ export default function App() {
                 onClick={() => setMusicService('apple')}
               >
                 apple
-              </button>
-              <button
-                className={`settings-theme-btn settings-shuffle ${shuffle ? 'active' : ''}`}
-                onClick={() => setShuffle((s) => !s)}
-                title="Shuffle"
-              >
-                &#8645;
               </button>
             </div>
 

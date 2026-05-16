@@ -9,18 +9,24 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-export default function useSpotifyPlayer(tracks, shuffle = false) {
+export default function useSpotifyPlayer(tracks, playMode = 'normal') {
   const audioRef = useRef(new Audio());
-  const shuffleRef = useRef(shuffle);
-  shuffleRef.current = shuffle;
+  const playModeRef = useRef(playMode);
+  playModeRef.current = playMode;
   const [trackIndex, setTrackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [volume, setVolumeState] = useState(() => {
+    const saved = localStorage.getItem('cupid-volume');
+    return saved !== null ? parseFloat(saved) : 1;
+  });
+  const [muted, setMuted] = useState(false);
 
   const audio = audioRef.current;
+  audio.volume = muted ? 0 : volume;
 
   const track = tracks[trackIndex] ?? {
     title: 'No track',
@@ -84,8 +90,13 @@ export default function useSpotifyPlayer(tracks, shuffle = false) {
     };
 
     const onEnded = () => {
+      if (playModeRef.current === 'repeat') {
+        audio.currentTime = 0;
+        audio.play().catch(() => {});
+        return;
+      }
       setTrackIndex((prev) => {
-        if (shuffleRef.current && tracks.length > 1) {
+        if (playModeRef.current === 'shuffle' && tracks.length > 1) {
           let next;
           do { next = Math.floor(Math.random() * tracks.length); } while (next === prev);
           return next;
@@ -119,7 +130,7 @@ export default function useSpotifyPlayer(tracks, shuffle = false) {
 
   const next = useCallback(() => {
     setTrackIndex((prev) => {
-      if (shuffleRef.current && tracks.length > 1) {
+      if (playModeRef.current === 'shuffle' && tracks.length > 1) {
         let n;
         do { n = Math.floor(Math.random() * tracks.length); } while (n === prev);
         return n;
@@ -144,6 +155,21 @@ export default function useSpotifyPlayer(tracks, shuffle = false) {
     }
   }, []);
 
+  const setVolume = useCallback((v) => {
+    const clamped = Math.max(0, Math.min(1, v));
+    setVolumeState(clamped);
+    audio.volume = clamped;
+    localStorage.setItem('cupid-volume', clamped);
+    if (clamped > 0) setMuted(false);
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    setMuted((m) => {
+      audio.volume = m ? volume : 0;
+      return !m;
+    });
+  }, [volume]);
+
   return {
     track,
     trackIndex,
@@ -155,6 +181,10 @@ export default function useSpotifyPlayer(tracks, shuffle = false) {
     next,
     prev,
     seek,
+    volume,
+    setVolume,
+    muted,
+    toggleMute,
     loading,
   };
 }
