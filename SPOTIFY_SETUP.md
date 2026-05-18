@@ -1,6 +1,8 @@
 # Spotify Integration Setup
 
-This guide walks you through connecting Cupid Player to your Spotify account. Audio is streamed via YouTube (using yt-dlp), so **Spotify Premium is not required** — your Spotify account is only used to browse playlists and fetch track metadata.
+This guide walks you through connecting Cupid Player to your Spotify account. Audio is streamed via YouTube (using yt-dlp).
+
+> **Heads up — Spotify Premium required for the app owner.** As of February 2026, Spotify requires the account that creates the developer app to have an active Premium subscription. Without it, the API returns `403 Active premium subscription required for the owner of the app` for everyone using your app — even other users you've added to User Management. See [Spotify's announcement](https://developer.spotify.com/blog/2026-02-06-update-on-developer-access-and-platform-security) for details.
 
 ## 1. Create a Spotify App
 
@@ -69,8 +71,9 @@ http://127.0.0.1:5173/callback
 
 ### `403 Forbidden` on playlist fetch
 
-1. **Add yourself in User Management.** Go to your app's Settings > User Management and add your Spotify email.
-2. **Stale token.** Open DevTools, run `localStorage.clear()`, reload, and log in again.
+1. **Premium subscription on the app owner's account.** As of February 2026, the Spotify account that created the developer app needs active Premium. Check the actual error in DevTools — if it says `Active premium subscription required for the owner of the app`, that's the cause. See [the announcement](https://developer.spotify.com/blog/2026-02-06-update-on-developer-access-and-platform-security).
+2. **Add yourself in User Management.** Go to your app's Settings > User Management and add your Spotify email.
+3. **Stale token.** Open DevTools, run `localStorage.clear()`, reload, and log in again.
 
 ### `Not authenticated with Spotify`
 
