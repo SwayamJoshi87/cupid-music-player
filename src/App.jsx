@@ -202,7 +202,15 @@ export default function App() {
   const [loadingPlaylists, setLoadingPlaylists] = useState(false);
   const [loadingPlaylist, setLoadingPlaylist] = useState(false);
   const [settingsError, setSettingsError] = useState(null);
-  const [musicService, setMusicService] = useState('local'); // 'spotify' | 'apple' | 'local'
+  const [musicService, setMusicService] = useState(() => {
+    try {
+      const stored = localStorage.getItem('cupid-player-music-service');
+      if (stored === 'spotify' || stored === 'apple' || stored === 'youtube' || stored === 'local') return stored;
+    } catch {
+      // ignore
+    }
+    return 'local';
+  }); // 'spotify' | 'apple' | 'youtube' | 'local'
   const [playMode, setPlayMode] = useState('normal'); // 'normal' | 'shuffle' | 'repeat'
   const [volumeHovered, setVolumeHovered] = useState(false);
   const [volumeDragging, setVolumeDragging] = useState(false);
@@ -714,6 +722,7 @@ export default function App() {
               ]}
               onChange={(next) => {
                 setMusicService(next);
+                try { localStorage.setItem('cupid-player-music-service', next); } catch { /* ignore */ }
                 if (next === 'local') setSource('local');
               }}
             />
