@@ -6,7 +6,7 @@ import useSpotifyPlayer from './useSpotifyPlayer';
 import useTheme from './useTheme';
 import { login as spotifyLogin, handleCallback, isLoggedIn as isSpotifyLoggedIn, logout as spotifyLogout } from './spotify/auth.js';
 import { fetchPlaylistTracks as fetchSpotifyTracks, fetchMyPlaylists as fetchSpotifyPlaylists } from './spotify/api.js';
-import { login as appleLogin, logout as appleLogout, isLoggedIn as isAppleLoggedIn, initMusicKit } from './apple/auth.js';
+import { logout as appleLogout, isLoggedIn as isAppleLoggedIn, saveTokens as appleSaveTokens } from './apple/auth.js';
 import { fetchMyPlaylists as fetchApplePlaylists, fetchPlaylistTracks as fetchAppleTracks } from './apple/api.js';
 import {
   login as youtubeLogin,
@@ -195,6 +195,8 @@ export default function App() {
   const [youtubeConnected, setYoutubeConnected] = useState(isYouTubeLoggedIn());
   const [youtubeLoggingIn, setYoutubeLoggingIn] = useState(false);
   const [youtubeUrlInput, setYoutubeUrlInput] = useState('');
+  const [appleAppTokenInput, setAppleAppTokenInput] = useState('');
+  const [appleUserTokenInput, setAppleUserTokenInput] = useState('');
   const [streamTracks, setStreamTracks] = useState([]);
   const [spotifyPlaylists, setSpotifyPlaylists] = useState([]);
   const [applePlaylists, setApplePlaylists] = useState([]);
@@ -270,7 +272,17 @@ export default function App() {
     if (!silent) setSettingsError(null);
     fetchApplePlaylists()
       .then((p) => { setApplePlaylists(p); setSettingsError(null); })
-      .catch((err) => { if (!silent) setSettingsError(err.message); })
+      .catch((err) => {
+        const expired = err.message === 'apple-token-expired';
+        if (expired) {
+          appleLogout();
+          setAppleConnected(false);
+          setApplePlaylists([]);
+        }
+        if (!silent || expired) {
+          setSettingsError(expired ? 'Apple Music tokens expired — paste fresh tokens' : err.message);
+        }
+      })
       .finally(() => setLoadingPlaylists(false));
   }, []);
 
@@ -349,7 +361,14 @@ export default function App() {
       setStreamTracks(tracks);
       setSource('streaming');
     } catch (err) {
-      setSettingsError(err.message);
+      if (service === 'apple' && err.message === 'apple-token-expired') {
+        appleLogout();
+        setAppleConnected(false);
+        setApplePlaylists([]);
+        setSettingsError('Apple Music tokens expired — paste fresh tokens');
+      } else {
+        setSettingsError(err.message);
+      }
     } finally {
       setLoadingPlaylist(false);
     }
@@ -772,17 +791,38 @@ export default function App() {
 
             {musicService === 'apple' && (
               !appleConnected ? (
-                <button className="settings-theme-btn" onClick={async () => {
-                  try {
-                    await appleLogin();
-                    setAppleConnected(true);
-                    loadApplePlaylists();
-                  } catch (err) {
-                    setSettingsError(err.message);
-                  }
-                }}>
-                  log in
-                </button>
+                <>
+                  <div className="settings-label" style={{ fontSize: '0.7em', opacity: 0.65, lineHeight: 1.5 }}>
+                    open music.apple.com · devtools → network · play any track · find an amp-api request · copy both header values
+                  </div>
+                  <input
+                    className="settings-input"
+                    type="text"
+                    placeholder="Authorization bearer token"
+                    value={appleAppTokenInput}
+                    onChange={(e) => setAppleAppTokenInput(e.target.value)}
+                  />
+                  <input
+                    className="settings-input"
+                    type="text"
+                    placeholder="media-user-token"
+                    value={appleUserTokenInput}
+                    onChange={(e) => setAppleUserTokenInput(e.target.value)}
+                  />
+                  <button
+                    className={`settings-theme-btn ${!appleAppTokenInput.trim() || !appleUserTokenInput.trim() ? 'disabled' : ''}`}
+                    disabled={!appleAppTokenInput.trim() || !appleUserTokenInput.trim()}
+                    onClick={() => {
+                      appleSaveTokens(appleUserTokenInput.trim(), appleAppTokenInput.trim());
+                      setAppleConnected(true);
+                      setAppleAppTokenInput('');
+                      setAppleUserTokenInput('');
+                      loadApplePlaylists();
+                    }}
+                  >
+                    save
+                  </button>
+                </>
               ) : (
                 <>
                   <PlaylistList

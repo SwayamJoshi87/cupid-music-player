@@ -531,6 +531,28 @@ ipcMain.handle('get-apple-music-token', () => {
   return generateAppleMusicToken();
 });
 
+ipcMain.handle('apple-api-fetch', async (_e, { url, userToken, appToken }) => {
+  if (typeof url !== 'string' || typeof userToken !== 'string' || typeof appToken !== 'string') {
+    throw new Error('Invalid arguments');
+  }
+  const parsed = new URL(url);
+  if (!parsed.hostname.endsWith('.music.apple.com')) {
+    throw new Error('Disallowed host');
+  }
+  const response = await net.fetch(url, {
+    headers: {
+      Authorization: `Bearer ${appToken}`,
+      'media-user-token': userToken,
+      Origin: 'https://music.apple.com',
+      Referer: 'https://music.apple.com/',
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    },
+  });
+  if (response.status === 401 || response.status === 403) throw new Error('apple-token-expired');
+  if (!response.ok) throw new Error(`Apple Music API error: ${response.status}`);
+  return response.json();
+});
+
 ipcMain.handle('get-stream-url', async (_e, title, artist) => {
   try {
     return await getStreamUrl(title, artist);

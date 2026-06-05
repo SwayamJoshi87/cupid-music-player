@@ -1,54 +1,37 @@
-/**
- * Apple Music API helpers.
- *
- * Fetches user playlists and track data via MusicKit JS.
- */
+import { getTokens } from './auth.js';
 
-import { getMusicKit, initMusicKit } from './auth.js';
+const BASE = 'https://amp-api.music.apple.com';
 
-/**
- * Fetch the user's Apple Music library playlists.
- *
- * @returns {Promise<Array<{ id: string, name: string, image: string|null, trackCount: number }>>}
- */
+async function appleGet(path, params = {}) {
+  const { userToken, appToken } = getTokens();
+  const url = new URL(`${BASE}${path}`);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  return window.cupid.appleFetch(url.toString(), userToken, appToken);
+}
+
+function artworkUrl(artwork, size = 300) {
+  if (!artwork?.url) return null;
+  return artwork.url.replace('{w}', String(size)).replace('{h}', String(size));
+}
+
 export async function fetchMyPlaylists() {
-  const mk = getMusicKit() || await initMusicKit();
-
-  const response = await mk.api.music('/v1/me/library/playlists', {
-    limit: 100,
-  });
-
-  return response.data.data.map((p) => ({
+  const data = await appleGet('/v1/me/library/playlists', { limit: '100' });
+  return (data.data || []).map((p) => ({
     id: p.id,
-    name: p.attributes.name,
-    image: p.attributes.artwork
-      ? window.MusicKit.formatArtworkURL(p.attributes.artwork, 300, 300)
-      : null,
-    trackCount: p.attributes.trackCount || 0,
+    name: p.attributes?.name || p.id,
+    image: artworkUrl(p.attributes?.artwork),
+    trackCount: p.attributes?.trackCount || 0,
   }));
 }
 
-/**
- * Fetch tracks from an Apple Music library playlist.
- *
- * @param {string} playlistId
- * @returns {Promise<Array<{ title: string, artist: string, art: string|null, uri: string }>>}
- */
 export async function fetchPlaylistTracks(playlistId) {
-  const mk = getMusicKit() || await initMusicKit();
-
-  const response = await mk.api.music(`/v1/me/library/playlists/${playlistId}/tracks`, {
-    limit: 100,
-  });
-
-  return response.data.data
+  const data = await appleGet(`/v1/me/library/playlists/${playlistId}/tracks`, { limit: '100' });
+  return (data.data || [])
     .filter((t) => t.attributes)
     .map((t) => ({
       title: t.attributes.name,
-      artist: t.attributes.artistName,
-      art: t.attributes.artwork
-        ? window.MusicKit.formatArtworkURL(t.attributes.artwork, 300, 300)
-        : null,
+      artist: t.attributes.artistName || '',
+      art: artworkUrl(t.attributes.artwork),
       uri: `apple:track:${t.id}`,
     }));
 }
