@@ -3,6 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "description": "A desktop media player",
+  "author": {
+    "name": "Cupidity",
+    "email": "cupidity@codedbycupidity.com"
+  },
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
@@ -70,9 +74,23 @@
       "target": "nsis",
       "icon": "assets/pink/icon.png"
     },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
     "linux": {
-      "target": "AppImage",
-      "icon": "assets/pink/icon.png"
+      "executableName": "cupid-player",
+      "target": ["AppImage", "deb"],
+      "icon": "assets/pink/icon.png",
+      "category": "AudioVideo",
+      "desktop": {
+        "Name": "Cupid Player",
+        "Comment": "A desktop media player",
+        "Categories": "AudioVideo;Audio;Player"
+      }
+    },
+    "deb": {
+      "depends": ["python3"]
     }
   }
 }
