@@ -1,63 +1,45 @@
-# Apple Music Integration Setup
+# Apple Music Setup
 
-This guide walks you through connecting Cupid Player to your Apple Music account. Audio is streamed via YouTube (using yt-dlp), so **an Apple Music subscription is not required for playback** — your account is only used to browse your library playlists.
+This app supports Apple Music playback using **browser tokens** — no paid Apple Developer account required.
 
-## 1. Create a MusicKit Key
+## How to Get Your Tokens
 
-1. Go to [Apple Developer - Keys](https://developer.apple.com/account/resources/authkeys/list)
-2. Click **+** to create a new key
-3. Name it anything (e.g. "Cupid Player")
-4. Check **MusicKit**
-5. Click **Configure**, select your app ID (or create one)
-6. Click **Continue** → **Register**
-7. **Download the .p8 file** — you can only download it once
-8. Note your **Key ID** (shown on the key page)
+1. Open **music.apple.com** in Chrome/Edge/Brave
+2. Sign in with your Apple Music subscription
+3. Open **DevTools** → `F12` or right-click → Inspect
+4. Go to the **Network** tab
+5. Play any song or album
+6. In the Network tab, find any request to **`amp-api.music.apple.com`**
+7. Click on that request and look at the **Request Headers**
+8. Copy two header values:
 
-## 2. Get Your Team ID
+   | Header | What to Copy |
+   |--------|-------------|
+   | `Authorization` | Copy the value (starts with `Bearer ...`). Paste the **entire thing** including "Bearer " |
+   | `media-user-token` | Copy this value too |
 
-1. Go to [Apple Developer - Membership](https://developer.apple.com/account#MembershipDetailsCard)
-2. Copy your **Team ID**
-
-## 3. Add Your Credentials
-
-1. Place the `.p8` key file in the project root
-2. Add to your `.env` file:
-   ```
-   APPLE_TEAM_ID=your_team_id
-   APPLE_KEY_ID=your_key_id
-   ```
-
-## 4. Run the App
-
-```bash
-npm install
-npm run dev
-```
-
-1. Click the settings icon in the player
-2. Switch to **apple** in the music toggle
-3. Click **log in** — Apple Music authorization will appear
-4. Your library playlists will load — click any to play
-
-## How It Works
-
-Cupid Player uses MusicKit JS to authenticate with Apple Music and fetch your library playlists and track metadata. Audio is then streamed from YouTube via yt-dlp, which searches for matching tracks automatically.
-
-## Requirements
-
-- Apple Developer account ($99/year) for the MusicKit key
-- Apple Music subscription is **not** required for playback
+9. Open the app → Settings → Apple Music
+10. Paste both tokens into the fields and click **Save**
 
 ## Troubleshooting
 
-### `No Apple Music developer token`
+| Problem | Fix |
+|---------|-----|
+| "Tokens expired" error | Tokens last a few hours. Re-extract fresh ones from music.apple.com |
+| No requests to `amp-api.music.apple.com` | Play a track first, then check the Network tab. Filter by "apple.com" |
+| Can't find the headers | Make sure you're looking at **Request Headers** (not Response Headers) |
+| App says "invalid token" | Make sure you include "Bearer " at the start of the Authorization field |
 
-Check that your `.env` has `APPLE_TEAM_ID` and `APPLE_KEY_ID` set, and that the `.p8` file is in the project root.
+## Notes
 
-### `MusicKit JS timed out`
+- These tokens are **session-based** and expire periodically. You may need to refresh them.
+- All token data stays in your browser's localStorage — nothing is sent anywhere except directly to Apple's API.
+- This method is for **personal use only**. The tokens are tied to your Apple Music subscription.
 
-The MusicKit script failed to load. Check your internet connection and try again.
+## Developer Setup (Alternative)
 
-### Login popup doesn't appear
-
-Make sure your Apple Developer account has MusicKit enabled for your key.
+If you have an Apple Developer account and want to use the official MusicKit API:
+1. Go to https://developer.apple.com
+2. Create a MusicKit identifier
+3. Generate a private key
+4. Use the official `MusicKit` JS library instead of browser tokens
