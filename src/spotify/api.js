@@ -66,33 +66,47 @@ export async function fetchPlaylistTracks(playlistId) {
   const token = await getAccessToken();
   if (!token) throw new Error('Not authenticated with Spotify');
 
-  const res = await fetchWithRetry(`${API_BASE}/playlists/${playlistId}?market=from_token`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Spotify API error ${res.status}: ${text}`);
-  }
-
-  const data = await res.json();
   const tracks = [];
+  let url = `${API_BASE}/playlists/${playlistId}?market=from_token`;
 
-  // The full playlist response nests tracks under `items` or `tracks`
-  const container = data.tracks || data.items;
-  const items = container?.items || [];
-
-  for (const entry of items) {
-    // Track data may be under `track` or `item` depending on API version
-    const t = entry.track || entry.item;
-    if (!t || !t.uri) continue;
-
-    tracks.push({
-      title: t.name,
-      artist: t.artists.map((a) => a.name).join(', '),
-      art: t.album?.images?.[0]?.url ?? null,
-      uri: t.uri,
+  while (url) {
+    const res = await fetchWithRetry(url, {
+      headers: { Authorization: `Bearer ${token}` },
     });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Spotify API error ${res.status}: ${text}`);
+    }
+
+    const data = await res.json();
+
+    // The first response is the full playlist object with the track
+    // paging container nested under `tracks` (older shape) or `items`
+    // (newer shape, where `items` is itself a paging object). Pages
+    // fetched via `next` are bare paging objects with the item array
+    // at the top level.
+    const container = data.tracks
+      ?? (Array.isArray(data.items) ? data : data.items);
+
+    if (!Array.isArray(container?.items)) {
+      throw new Error(`Spotify returned an unexpected playlist response: ${JSON.stringify(data).slice(0, 200)}`);
+    }
+
+    for (const entry of container.items) {
+      // Track data may be under `track` or `item` depending on API version
+      const t = entry.track || entry.item;
+      if (!t || !t.uri) continue;
+
+      tracks.push({
+        title: t.name,
+        artist: t.artists.map((a) => a.name).join(', '),
+        art: t.album?.images?.[0]?.url ?? null,
+        uri: t.uri,
+      });
+    }
+
+    url = container?.next ?? null;
   }
 
   // Fill in missing album art via search (local files, etc.)
@@ -144,6 +158,9 @@ export async function fetchMyPlaylists() {
     }
 
     const data = await res.json();
+    if (!Array.isArray(data.items)) {
+      throw new Error(`Spotify returned an unexpected playlists response: ${JSON.stringify(data).slice(0, 200)}`);
+    }
     for (const p of data.items) {
       playlists.push({
         id: p.id,

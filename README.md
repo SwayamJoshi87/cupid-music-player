@@ -26,12 +26,17 @@ git clone https://github.com/cupidbity/cupid-music-player.git
 # 2. Step INTO the folder you just downloaded (this step is required!)
 cd cupid-music-player
 
-# 3. Install dependencies (also auto-downloads the yt-dlp binary into ./bin)
-npm install
+# 3. Set up the app (installs deps, downloads the yt-dlp binary, and
+#    auto-checks/repairs the Electron binary issue some hit on Windows)
+npm run setup
 
 # 4. Run the app in dev mode
 npm run dev
 ```
+
+`npm run setup` is the recommended one-command setup — it installs dependencies, downloads the yt-dlp binary, and automatically checks for and repairs the Electron binary issue that can otherwise break `npm run dev` on Windows. If anything was off, just re-run `npm run setup`. (Plain `npm install` still works too.)
+
+> Hitting an Electron `path.txt` / "failed to install correctly" error, or streaming not working? See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) — including the manual Electron binary fix for too-new Node versions.
 
 
 ### Prerequisites
