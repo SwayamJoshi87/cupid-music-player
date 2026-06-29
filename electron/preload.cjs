@@ -18,4 +18,7 @@ contextBridge.exposeInMainWorld('cupid', {
   youtubeOauthStart: (opts) => ipcRenderer.invoke('youtube-oauth-start', opts),
   youtubeOauthCancel: () => ipcRenderer.invoke('youtube-oauth-cancel'),
   appleFetch: (url, userToken, appToken) => ipcRenderer.invoke('apple-api-fetch', { url, userToken, appToken }),
+  appleSaveTokens: (userToken, appToken) => ipcRenderer.invoke('apple-save-tokens', { userToken, appToken }),
+  appleLoadTokens: () => ipcRenderer.invoke('apple-load-tokens'),
+  appleClearTokens: () => ipcRenderer.invoke('apple-clear-tokens'),
 });

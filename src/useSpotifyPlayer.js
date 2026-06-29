@@ -1,13 +1,50 @@
 /**
- * React hook for Spotify playback via YouTube audio streams.
+ * React hook for Spotify/Apple Music streaming playback.
  *
- * Spotify API supplies metadata/playlists; audio is fetched from YouTube
- * in the main process (cupid-audio:// protocol) and played via HTML5 Audio.
+ * By default this now resolves audio via the Apple Music catalog API
+ * (preview URLs). The legacy YouTube/yt-dlp path can be re-enabled by
+ * setting USE_APPLE_MUSIC=false in settings or localStorage.
  *
  * Same interface as useAudioPlayer.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { resolveAppleStream } from './apple/stream.js';
+
+const USE_APPLE_MUSIC_KEY = 'cupid-use-apple-music';
+
+function getUseAppleMusic() {
+  try {
+    const stored = localStorage.getItem(USE_APPLE_MUSIC_KEY);
+    if (stored === null) return true; // default to Apple Music catalog
+    return stored === 'true';
+  } catch {
+    return true;
+  }
+}
+
+export function setUseAppleMusic(value) {
+  try {
+    localStorage.setItem(USE_APPLE_MUSIC_KEY, String(value));
+  } catch {
+    // ignore
+  }
+}
+
+export function readUseAppleMusic() {
+  return getUseAppleMusic();
+}
+
+async function resolveStreamUrl(t) {
+  if (getUseAppleMusic()) {
+    return resolveAppleStream(t.title, t.artist, t.appleTrackId);
+  }
+
+  if (t.videoId) {
+    return { url: await window.cupid.getStreamUrlById(t.videoId) };
+  }
+  return { url: await window.cupid.getStreamUrl(t.title, t.artist) };
+}
 
 export default function useSpotifyPlayer(tracks, playMode = 'normal') {
   const audioRef = useRef(new Audio());
@@ -62,12 +99,10 @@ export default function useSpotifyPlayer(tracks, playMode = 'normal') {
 
     async function loadStream() {
       try {
-        const url = t.videoId
-          ? await window.cupid.getStreamUrlById(t.videoId)
-          : await window.cupid.getStreamUrl(t.title, t.artist);
+        const result = await resolveStreamUrl(t);
         if (cancelled) return;
         // setting src triggers loading; an explicit audio.load() would reset it
-        audio.src = url;
+        audio.src = result.url;
         if (isPlayingRef.current) {
           audio.play().catch(() => {});
         }
@@ -96,11 +131,7 @@ export default function useSpotifyPlayer(tracks, playMode = 'normal') {
       const t = tracks[idx];
       if (!t) return;
       prefetched.add(idx);
-      if (t.videoId) {
-        window.cupid.getStreamUrlById(t.videoId).catch(() => {});
-      } else {
-        window.cupid.getStreamUrl(t.title, t.artist).catch(() => {});
-      }
+      resolveStreamUrl(t).catch(() => {});
     };
 
     let nextIdx;

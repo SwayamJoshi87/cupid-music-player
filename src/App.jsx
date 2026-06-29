@@ -2,7 +2,7 @@ import { useCallback, useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import './App.css';
 import useAudioPlayer from './useAudioPlayer';
-import useSpotifyPlayer from './useSpotifyPlayer';
+import useSpotifyPlayer, { readUseAppleMusic, setUseAppleMusic } from './useSpotifyPlayer';
 import useTheme from './useTheme';
 import { login as spotifyLogin, handleCallback, isLoggedIn as isSpotifyLoggedIn, logout as spotifyLogout } from './spotify/auth.js';
 import { fetchPlaylistTracks as fetchSpotifyTracks, fetchMyPlaylists as fetchSpotifyPlaylists } from './spotify/api.js';
@@ -191,8 +191,9 @@ export default function App() {
   // ── Source state ─────────────────────────────────────────
   const [source, setSource] = useState('local'); // 'local' | 'streaming'
   const [spotifyConnected, setSpotifyConnected] = useState(isSpotifyLoggedIn());
-  const [appleConnected, setAppleConnected] = useState(isAppleLoggedIn());
+  const [appleConnected, setAppleConnected] = useState(false);
   const [youtubeConnected, setYoutubeConnected] = useState(isYouTubeLoggedIn());
+  const [useAppleMusic, setUseAppleMusicState] = useState(readUseAppleMusic());
   const [youtubeLoggingIn, setYoutubeLoggingIn] = useState(false);
   const [youtubeUrlInput, setYoutubeUrlInput] = useState('');
   const [appleAppTokenInput, setAppleAppTokenInput] = useState('');
@@ -231,6 +232,18 @@ export default function App() {
   }, []);
 
   useEffect(() => { loadLocalPlaylist(); }, [loadLocalPlaylist]);
+
+  useEffect(() => {
+    isAppleLoggedIn().then(setAppleConnected).catch(() => setAppleConnected(false));
+  }, []);
+
+  useEffect(() => {
+    if (useAppleMusic && musicService === 'youtube') {
+      setMusicService('local');
+      try { localStorage.setItem('cupid-player-music-service', 'local'); } catch { /* ignore */ }
+      setSource('local');
+    }
+  }, [useAppleMusic, musicService]);
 
   const local = useAudioPlayer(localTracks, playMode, window.cupid?.getLocalAudioPath);
   const streaming = useSpotifyPlayer(streamTracks, playMode);
@@ -272,10 +285,10 @@ export default function App() {
     if (!silent) setSettingsError(null);
     fetchApplePlaylists()
       .then((p) => { setApplePlaylists(p); setSettingsError(null); })
-      .catch((err) => {
+      .catch(async (err) => {
         const expired = err.message === 'apple-token-expired';
         if (expired) {
-          appleLogout();
+          await appleLogout();
           setAppleConnected(false);
           setApplePlaylists([]);
         }
@@ -336,7 +349,7 @@ export default function App() {
         }
       } else {
         if (isSpotifyLoggedIn()) loadSpotifyPlaylists(true);
-        if (isAppleLoggedIn()) loadApplePlaylists(true);
+        if (await isAppleLoggedIn()) loadApplePlaylists(true);
         if (isYouTubeLoggedIn()) loadYoutubePlaylists(true);
       }
     }
@@ -362,7 +375,7 @@ export default function App() {
       setSource('streaming');
     } catch (err) {
       if (service === 'apple' && err.message === 'apple-token-expired') {
-        appleLogout();
+        await appleLogout();
         setAppleConnected(false);
         setApplePlaylists([]);
         setSettingsError('Apple Music tokens expired — paste fresh tokens');
@@ -737,7 +750,7 @@ export default function App() {
                 { value: 'local', label: 'local' },
                 { value: 'spotify', label: 'spotify' },
                 { value: 'apple', label: 'apple' },
-                { value: 'youtube', label: 'youtube' },
+                ...(useAppleMusic ? [] : [{ value: 'youtube', label: 'youtube' }]),
               ]}
               onChange={(next) => {
                 setMusicService(next);
@@ -745,6 +758,9 @@ export default function App() {
                 if (next === 'local') setSource('local');
               }}
             />
+            {useAppleMusic && musicService === 'youtube' && (
+              <div className="settings-error">YouTube is disabled while Apple Music streaming is on.</div>
+            )}
 
             {musicService === 'local' && (
               <button
@@ -793,8 +809,14 @@ export default function App() {
               !appleConnected ? (
                 <>
                   <div className="settings-label" style={{ fontSize: '0.7em', opacity: 0.65, lineHeight: 1.5 }}>
-                    open music.apple.com · devtools → network · play any track · find an amp-api request · copy both header values
+                    Sign in at music.apple.com, then paste the two tokens from any amp-api request in DevTools → Network.
                   </div>
+                  <button
+                    className="settings-theme-btn"
+                    onClick={() => window.cupid?.openExternal?.('https://music.apple.com')}
+                  >
+                    open music.apple.com
+                  </button>
                   <input
                     className="settings-input"
                     type="text"
@@ -812,19 +834,42 @@ export default function App() {
                   <button
                     className={`settings-theme-btn ${!appleAppTokenInput.trim() || !appleUserTokenInput.trim() ? 'disabled' : ''}`}
                     disabled={!appleAppTokenInput.trim() || !appleUserTokenInput.trim()}
-                    onClick={() => {
-                      appleSaveTokens(appleUserTokenInput.trim(), appleAppTokenInput.trim());
-                      setAppleConnected(true);
-                      setAppleAppTokenInput('');
-                      setAppleUserTokenInput('');
-                      loadApplePlaylists();
+                    onClick={async () => {
+                      setSettingsError(null);
+                      try {
+                        await appleSaveTokens(appleUserTokenInput.trim(), appleAppTokenInput.trim());
+                        setAppleConnected(true);
+                        setAppleAppTokenInput('');
+                        setAppleUserTokenInput('');
+                        loadApplePlaylists();
+                      } catch (err) {
+                        setSettingsError(err.message);
+                      }
                     }}
                   >
-                    save
+                    save tokens
                   </button>
                 </>
               ) : (
                 <>
+                  <div className="settings-theme-row" style={{ justifyContent: 'space-between' }}>
+                    <span className="settings-label" style={{ margin: 0 }}>use apple music for streaming</span>
+                    <button
+                      className={`settings-theme-btn ${useAppleMusic ? 'active' : ''}`}
+                      onClick={() => {
+                        const next = !useAppleMusic;
+                        setUseAppleMusicState(next);
+                        setUseAppleMusic(next);
+                      }}
+                    >
+                      {useAppleMusic ? 'on' : 'off'}
+                    </button>
+                  </div>
+                  <div className="settings-label" style={{ fontSize: '0.65em', opacity: 0.55, lineHeight: 1.4 }}>
+                    {useAppleMusic
+                      ? 'Streaming uses Apple Music catalog preview URLs (30–90 s snippets). Turn off to fall back to YouTube/yt-dlp.'
+                      : 'Streaming falls back to YouTube audio via yt-dlp.'}
+                  </div>
                   <PlaylistList
                     loading={loadingPlaylists}
                     playlists={applePlaylists}
@@ -839,8 +884,8 @@ export default function App() {
                     >
                       refresh
                     </button>
-                    <button className="settings-theme-btn" onClick={() => {
-                      appleLogout();
+                    <button className="settings-theme-btn" onClick={async () => {
+                      await appleLogout();
                       setAppleConnected(false);
                       setApplePlaylists([]);
                       if (source === 'streaming') setSource('local');
@@ -852,7 +897,11 @@ export default function App() {
               )
             )}
 
-            {musicService === 'youtube' && (
+            {musicService === 'youtube' && useAppleMusic && (
+              <div className="settings-error">YouTube is disabled while Apple Music streaming is enabled.</div>
+            )}
+
+            {musicService === 'youtube' && !useAppleMusic && (
               isYouTubeConfigured() ? (
                 !youtubeConnected ? (
                   <button

@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { app, BrowserWindow, ipcMain, screen, shell, protocol, net } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, shell, protocol, net, safeStorage } = require('electron');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const path = require('node:path');
@@ -60,6 +60,36 @@ function generateAppleMusicToken() {
   // Cache for 179 days
   appleMusicTokenExpiry = Date.now() + 179 * 24 * 60 * 60 * 1000;
   return appleMusicToken;
+}
+
+// ── Secure Apple Music token storage ─────────────────────
+// Tokens extracted from music.apple.com are sensitive; keep them encrypted
+// on disk using Electron's safeStorage instead of localStorage.
+const APPLE_TOKEN_FILE = path.join(app.getPath('userData'), 'apple-tokens.json');
+
+async function saveAppleTokens(userToken, appToken) {
+  const payload = JSON.stringify({ userToken: userToken?.trim() ?? '', appToken: appToken?.trim() ?? '' });
+  const encrypted = safeStorage.encryptString(payload);
+  await fs.promises.writeFile(APPLE_TOKEN_FILE, encrypted);
+}
+
+async function loadAppleTokens() {
+  try {
+    const encrypted = await fs.promises.readFile(APPLE_TOKEN_FILE);
+    const decrypted = safeStorage.decryptString(encrypted);
+    const { userToken = '', appToken = '' } = JSON.parse(decrypted);
+    return { userToken, appToken };
+  } catch {
+    return { userToken: '', appToken: '' };
+  }
+}
+
+async function clearAppleTokens() {
+  try {
+    await fs.promises.unlink(APPLE_TOKEN_FILE);
+  } catch {
+    // ignore
+  }
 }
 
 // ── yt-dlp stream URL fetcher ────────────────────────────
@@ -599,6 +629,24 @@ ipcMain.handle('apple-api-fetch', async (_e, { url, userToken, appToken }) => {
   if (response.status === 401 || response.status === 403) throw new Error('apple-token-expired');
   if (!response.ok) throw new Error(`Apple Music API error: ${response.status}`);
   return response.json();
+});
+
+ipcMain.handle('apple-save-tokens', async (_e, { userToken, appToken }) => {
+  try {
+    await saveAppleTokens(userToken, appToken);
+    return true;
+  } catch (err) {
+    throw new Error(`Failed to save Apple Music tokens: ${err.message}`);
+  }
+});
+
+ipcMain.handle('apple-load-tokens', async () => {
+  return loadAppleTokens();
+});
+
+ipcMain.handle('apple-clear-tokens', async () => {
+  await clearAppleTokens();
+  return true;
 });
 
 ipcMain.handle('get-stream-url', async (_e, title, artist) => {
