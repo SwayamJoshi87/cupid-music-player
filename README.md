@@ -9,9 +9,9 @@ A pixel-art desktop music player built with Electron, Vite, and React.
 - Interactive progress bar with draggable star indicator
 - Marquee scrolling for long track titles
 - Pink and blue theme switching with persistent preference
-- Spotify integration — browse your playlists and play tracks via yt-dlp
-- Apple Music integration — browse your library playlists via MusicKit JS
-- YouTube playlists — paste any public playlist URL (no sign-in) or sign in with Google to browse your own
+- Spotify integration — browse your playlists and play tracks via Apple Music catalog previews
+- Apple Music integration — browse your library playlists and stream via Apple Music catalog previews
+- YouTube playlists — paste any public playlist URL (no sign-in) or sign in with Google to browse your own (disabled when Apple Music streaming is enabled)
 - Local MP3 playback
 - Custom frameless window with drag and resize
 - Dynamic dock/taskbar icon that matches the active theme
@@ -58,7 +58,7 @@ git --version     # should print git version 2.x.x
 
 If any of those says "command not found," install that tool first.
 
-> No Python is needed. The `npm install` step automatically downloads a standalone `yt-dlp` binary for your OS into the project's `bin/` folder.
+> No Python is needed. The `npm install` step may download a standalone `yt-dlp` binary for fallback streaming; it is only used when Apple Music catalog streaming is turned off.
 
 ---
 
@@ -100,7 +100,7 @@ On first launch, the installed app seeds this folder with the bundled defaults. 
 
 ## Spotify Setup
 
-Stream any track from your Spotify playlists. Audio is fetched from YouTube via yt-dlp.
+Stream any track from your Spotify playlists. Audio is resolved via the **Apple Music catalog API** by searching each track's title and artist; playback uses 30–90 second preview URLs by default.
 
 > **Note:** As of February 2026, Spotify requires the developer account that creates the app to have an active Premium subscription ([announcement](https://developer.spotify.com/blog/2026-02-06-update-on-developer-access-and-platform-security)). Without it, the Spotify API returns 403 for all users.
 
@@ -110,22 +110,32 @@ Stream any track from your Spotify playlists. Audio is fetched from YouTube via 
 4. Add yourself under Settings > User Management
 5. Click the settings icon in the player > log in
 
+To switch back to YouTube/yt-dlp audio, turn off **Use Apple Music for streaming** in the Apple Music settings tab.
+
 See [SPOTIFY_SETUP.md](SPOTIFY_SETUP.md) for detailed instructions and troubleshooting.
 
 ## Apple Music Setup
 
-Browse your Apple Music library playlists. Requires an Apple Developer account. **Apple Music subscription is not required for playback.**
+Browse your Apple Music library playlists and stream tracks via the Apple Music catalog API. **An Apple Music subscription is required for library browsing; preview playback works with catalog search results.**
 
-1. Create a MusicKit key at [developer.apple.com/account/resources/authkeys](https://developer.apple.com/account/resources/authkeys/list)
-2. Download the `.p8` key file and place it in the project root
-3. Add `APPLE_TEAM_ID` and `APPLE_KEY_ID` to your `.env`
-4. Click the settings icon > switch to apple > log in
+1. Open the app and click the settings icon
+2. Switch to the **apple** music service
+3. Click **open music.apple.com** and sign in with your Apple ID
+4. Open DevTools → Network, play any track, and copy the `Authorization` and `media-user-token` headers from an `amp-api.music.apple.com` request
+5. Paste both values into the app and click **save tokens**
+6. Toggle **use apple music for streaming** to enable catalog preview playback
+
+Tokens are stored encrypted on your machine using your OS keychain. You can turn Apple Music streaming off at any time to fall back to the legacy YouTube/yt-dlp path.
+
+> **Limitation:** Catalog preview URLs are 30–90 second snippets. Full-track playback via MusicKit JS is planned for a future release.
 
 See [APPLE_MUSIC_SETUP.md](APPLE_MUSIC_SETUP.md) for detailed instructions and troubleshooting.
 
 ## YouTube Setup
 
-Two flows — pick whichever you want by configuring (or not) your `.env`. **No YouTube Premium / no subscription required** in either case.
+YouTube playlist support is available only when **Use Apple Music for streaming** is turned off. **No YouTube Premium / no subscription required** in either case.
+
+Two flows — pick whichever you want by configuring (or not) your `.env`.
 
 **Paste any public playlist URL** (zero setup):
 
@@ -170,10 +180,11 @@ cp -r "out/mac-arm64/Cupid Player.app" /Applications/
 - **Vite** — build tool and dev server
 - **React** — UI framework
 - **HTML5 Audio** — local MP3 playback
-- **yt-dlp** — YouTube audio streaming for Spotify/Apple/YouTube tracks; also fetches public YouTube playlist contents via `--flat-playlist`
+- **Apple Music Catalog API** — streaming audio via preview URLs for Spotify/Apple Music tracks
 - **Spotify Web API** — playlist and metadata fetching (OAuth PKCE)
-- **Apple MusicKit JS** — library playlist access (JWT auth)
+- **Apple MusicKit JS / amp-api** — library playlist access (browser token auth)
 - **YouTube Data API v3** — sign-in browsing of the user's own playlists (Google OAuth PKCE, free quota)
+- **yt-dlp** — legacy fallback for YouTube audio streaming and public playlist scraping when Apple Music streaming is disabled
 - **CSS** — custom properties for theming, calc-based responsive scaling
 - **Node.js** — main process (JWT generation, yt-dlp execution)
 - **jsonwebtoken** — Apple Music developer token generation

@@ -12,7 +12,7 @@ import { fetchPlaylistTracks, fetchMyPlaylists } from './api.js';
 const appleFetchMock = vi.fn();
 
 vi.mock('./auth.js', () => ({
-  getTokens: vi.fn(() => ({ userToken: 'user-token', appToken: 'app-token' })),
+  getTokens: vi.fn(async () => ({ userToken: 'user-token', appToken: 'app-token' })),
 }));
 
 beforeEach(() => {
@@ -71,6 +71,7 @@ describe('fetchPlaylistTracks', () => {
       artist: 'Artist 0',
       art: 'https://img.example/0.jpg',
       uri: 'apple:track:track-0',
+      appleTrackId: 'track-0',
     });
     expect(tracks[99].title).toBe('Track 99');
     expect(tracks[100].title).toBe('Track 100');

@@ -3,7 +3,7 @@ import { getTokens } from './auth.js';
 const BASE = 'https://amp-api.music.apple.com';
 
 async function appleGet(path, params = {}) {
-  const { userToken, appToken } = getTokens();
+  const { userToken, appToken } = await getTokens();
   const url = new URL(`${BASE}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   return window.cupid.appleFetch(url.toString(), userToken, appToken);
@@ -72,5 +72,6 @@ export async function fetchPlaylistTracks(playlistId) {
       artist: t.attributes.artistName || '',
       art: artworkUrl(t.attributes.artwork),
       uri: `apple:track:${t.id}`,
+      appleTrackId: t.id,
     }));
 }
